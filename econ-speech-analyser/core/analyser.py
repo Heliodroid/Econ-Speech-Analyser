@@ -2,7 +2,7 @@
 core/analyser.py
 ----------------
 Heart of the project. Takes raw text, returns structured tone analysis.
-No UI here — just pure logic. Other modules import from this.
+
 """
 
 import re
@@ -56,9 +56,6 @@ LOG_PATH = Path(__file__).parent.parent / "data" / "results.csv"
 def clean_and_tokenise(text: str) -> list[str]:
     """
     Lowercase, tokenise, keep only alphabetic words.
-    TODDLER EXPLANATION: Take a wall of text. Chop it into words.
-    Throw away numbers and punctuation. Make everything lowercase
-    so 'Inflation' and 'inflation' count as the same word.
     """
     tokens = word_tokenize(text.lower())
     return [t for t in tokens if t.isalpha()]
@@ -67,8 +64,6 @@ def clean_and_tokenise(text: str) -> list[str]:
 def remove_stopwords(tokens: list[str]) -> list[str]:
     """
     Drop words so common they carry zero information.
-    TODDLER EXPLANATION: 'The', 'is', 'and', 'of' appear in EVERY text.
-    They're like background noise. Remove them so we only hear the signal.
     """
     return [w for w in tokens if w not in STOP_WORDS]
 
@@ -78,10 +73,6 @@ def compute_tone_score(filtered_tokens: list[str]) -> dict:
     Match tokens against hawkish/dovish lexicons.
     Normalise by total filtered word count so long speeches don't
     automatically score higher than short ones.
-
-    TODDLER EXPLANATION: Count how many 'angry inflation fighter' words
-    vs 'calm growth supporter' words exist. Divide by total words
-    so a 10-word speech and a 1000-word speech are comparable.
 
     Returns score > 0  → hawkish lean
             score < 0  → dovish lean
@@ -118,10 +109,7 @@ def readability_metrics(text: str) -> dict:
     Score 60-70 → standard (newspaper)
     Score 70+   → easy
 
-    TODDLER EXPLANATION: Long sentences with long words = hard to read.
-    Short sentences with simple words = easy. Fed speeches score ~35.
-    If YOU score lower than the Fed, write shorter sentences!
-    """
+   """
     return {
         "flesch_score": round(textstat.flesch_reading_ease(text), 1),
         "grade_level": round(textstat.flesch_kincaid_grade(text), 1),
@@ -135,8 +123,6 @@ def readability_metrics(text: str) -> dict:
 def top_keywords(filtered_tokens: list[str], n: int = 10) -> list[tuple]:
     """
     Frequency distribution of meaningful words after stopword removal.
-    TODDLER EXPLANATION: After throwing away boring words, count what's left.
-    The most frequent words = what the speaker ACTUALLY cares about.
     """
     return Counter(filtered_tokens).most_common(n)
 
@@ -145,10 +131,7 @@ def analyse(text: str, source: str = "unknown", save: bool = True) -> dict:
     """
     Master function. Feed it text, get back a full analysis dict.
     Optionally logs to CSV for the time-series research module.
-
-    TODDLER EXPLANATION: This is the factory. Raw text goes in one end.
-    Numbers, labels, and insights come out the other end.
-    """
+ """
     tokens = clean_and_tokenise(text)
     filtered = remove_stopwords(tokens)
 
