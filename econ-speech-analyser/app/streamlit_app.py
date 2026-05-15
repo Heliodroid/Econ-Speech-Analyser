@@ -3,30 +3,26 @@ app/streamlit_app.py
 --------------------
 Web UI for the analyser. Run with: streamlit run app/streamlit_app.py
 Deploy free at: streamlit.io/cloud (connect your GitHub repo, done)
-
-TODDLER EXPLANATION: Streamlit turns a Python script into a website.
-You write Python. It makes buttons, sliders, charts automatically.
-Zero HTML/CSS needed. Perfect for data science portfolios.
 """
 
 import sys
 from pathlib import Path
-sys.path.append(str(Path(__file__).parent.parent))  # so we can import core/
+sys.path.append(str(Path(__file__).parent.parent))
 
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from core.analyser import analyse, LOG_PATH
+from plotly.subplots import make_subplots
+from core.analyser import analyse
 
-# ─── Page config ─────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="Econ Speech Analyser",
     page_icon="📊",
     layout="wide",
 )
 
-# ─── Sample speeches for demo purposes ───────────────────────────────────────
+# ─── Sample speeches ──────────────────────────────────────────────────────────
 SAMPLES = {
     "Hawkish Fed (Nov 2022)": (
         "Inflation remains well above our longer-run goal of 2 percent. "
@@ -54,7 +50,30 @@ SAMPLES = {
     ),
 }
 
-# ─── Sidebar ─────────────────────────────────────────────────────────────────
+# ─── Hardcoded baseline (always visible in chart) ────────────────────────────
+BASELINE_DATA = [
+    {"date": "2021-08-27", "source": "Powell Jackson Hole 2021",  "score": -0.0312, "label": "Dovish",  "hawk_count": 2, "dove_count": 5},
+    {"date": "2022-03-02", "source": "Powell Congress Mar 2022",  "score":  0.0421, "label": "Hawkish", "hawk_count": 7, "dove_count": 1},
+    {"date": "2022-08-26", "source": "Powell Jackson Hole 2022",  "score":  0.0587, "label": "Hawkish", "hawk_count": 9, "dove_count": 0},
+    {"date": "2023-02-07", "source": "Powell Econ Club Feb 2023", "score":  0.0314, "label": "Hawkish", "hawk_count": 5, "dove_count": 1},
+    {"date": "2023-11-01", "source": "FOMC Statement Nov 2023",   "score":  0.0089, "label": "Neutral",  "hawk_count": 3, "dove_count": 2},
+    {"date": "2024-09-18", "source": "FOMC Statement Sep 2024",   "score": -0.0198, "label": "Dovish",  "hawk_count": 1, "dove_count": 4},
+]
+
+# ─── Real Fed rate decisions for overlay ─────────────────────────────────────
+RATE_DECISIONS = [
+    ("2020-03-15", 0.25), ("2022-03-16", 0.50), ("2022-05-04", 1.00),
+    ("2022-06-15", 1.75), ("2022-07-27", 2.50), ("2022-09-21", 3.25),
+    ("2022-11-02", 4.00), ("2022-12-14", 4.50), ("2023-02-01", 4.75),
+    ("2023-03-22", 5.00), ("2023-05-03", 5.25), ("2023-09-20", 5.50),
+    ("2024-09-18", 5.00), ("2024-11-07", 4.75), ("2024-12-18", 4.50),
+]
+
+# ─── Session state for user-added speeches ────────────────────────────────────
+if "user_speeches" not in st.session_state:
+    st.session_state.user_speeches = []
+
+# ─── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.title("📊 Econ Speech Analyser")
     st.markdown("Classifies central bank communications as **Hawkish**, **Dovish**, or **Neutral** using domain-specific NLP.")
@@ -65,14 +84,16 @@ with st.sidebar:
 2. Remove stopwords (the, is, and...)
 3. Match against hawkish/dovish lexicons
 4. Compute normalised tone score
-5. Log to CSV for time-series analysis
+5. Plot against actual rate decisions
     """)
     st.divider()
     st.markdown("Built with `NLTK` · `textstat` · `Streamlit` · `Plotly`")
-    st.markdown("[View on GitHub](https://github.com/your-username/econ-speech-analyser)")
+    st.markdown("[View on GitHub](https://github.com/arkobanerjee/econ-speech-analyser)")
+    st.divider()
+    st.markdown("**Academic grounding**")
+    st.caption("Loughran & McDonald (2011) · Hansen, McMahon & Prat (2018) · Gürkaynak et al. (2005)")
 
-
-# ─── Main tabs ───────────────────────────────────────────────────────────────
+# ─── Tabs ─────────────────────────────────────────────────────────────────────
 tab1, tab2 = st.tabs(["🔍 Analyse a Speech", "📈 Tone Over Time"])
 
 
@@ -81,24 +102,20 @@ tab1, tab2 = st.tabs(["🔍 Analyse a Speech", "📈 Tone Over Time"])
 # ══════════════════════════════════════════════════════
 with tab1:
     st.header("Analyse a Speech")
-
     col_left, col_right = st.columns([1, 1], gap="large")
 
     with col_left:
-        # Sample loader
         sample_choice = st.selectbox(
             "Load a sample speech (or paste your own below)",
             options=["— paste your own —"] + list(SAMPLES.keys())
         )
         default_text = SAMPLES.get(sample_choice, "")
         text_input = st.text_area(
-            "Speech text",
-            value=default_text,
-            height=300,
+            "Speech text", value=default_text, height=300,
             placeholder="Paste any central bank speech, Fed minutes, RBI statement..."
         )
         source_label = st.text_input(
-            "Source label (for logging)",
+            "Source label",
             value=sample_choice if sample_choice != "— paste your own —" else "",
             placeholder="e.g. Fed_2022_Nov"
         )
@@ -107,24 +124,20 @@ with tab1:
     with col_right:
         if run_btn and text_input.strip():
             with st.spinner("Analysing..."):
-                r = analyse(text_input, source=source_label or "unknown", save=True)
+                r = analyse(text_input, source=source_label or "unknown", save=False)
 
-            # ── Tone verdict ──────────────────────────────────────────────
             tone_colours = {"Hawkish": "🔴", "Dovish": "🔵", "Neutral": "⚪"}
             st.subheader(f"{tone_colours.get(r['label'], '⚪')} Tone: {r['label']}")
 
-            # ── Tone gauge bar ────────────────────────────────────────────
-            # Score is roughly in range [-0.15, +0.15], map to 0-100 for display
             pct = min(100, max(0, int(((r["score"] + 0.15) / 0.30) * 100)))
             bar_colour = "#e05c3a" if r["label"] == "Hawkish" else "#3a7de0" if r["label"] == "Dovish" else "#888"
             st.markdown(f"""
             <div style="background:#eee;border-radius:6px;height:14px;margin-bottom:8px">
-              <div style="width:{pct}%;background:{bar_colour};height:14px;border-radius:6px;transition:width 0.4s"></div>
+              <div style="width:{pct}%;background:{bar_colour};height:14px;border-radius:6px"></div>
             </div>
             <p style="font-size:12px;color:gray;margin-top:-4px">Dovish ←——————→ Hawkish &nbsp;|&nbsp; Score: {r['score']}</p>
             """, unsafe_allow_html=True)
 
-            # ── Metric cards ──────────────────────────────────────────────
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Words", r["word_count"])
             m2.metric("Hawk signals", r["hawk_count"])
@@ -132,48 +145,32 @@ with tab1:
             m4.metric("Flesch score", r["flesch_score"])
 
             st.divider()
-
-            # ── Keywords ─────────────────────────────────────────────────
             st.markdown("**Detected tone keywords**")
             kw_cols = st.columns(2)
             with kw_cols[0]:
                 st.markdown("🔴 Hawkish hits")
-                if r["hawk_hits"]:
-                    st.code(", ".join(sorted(set(r["hawk_hits"]))))
-                else:
-                    st.caption("none found")
+                st.code(", ".join(sorted(set(r["hawk_hits"]))) if r["hawk_hits"] else "none")
             with kw_cols[1]:
                 st.markdown("🔵 Dovish hits")
-                if r["dove_hits"]:
-                    st.code(", ".join(sorted(set(r["dove_hits"]))))
-                else:
-                    st.caption("none found")
+                st.code(", ".join(sorted(set(r["dove_hits"]))) if r["dove_hits"] else "none")
 
             st.divider()
-
-            # ── Top words bar chart ───────────────────────────────────────
             st.markdown("**Top keywords (stopwords removed)**")
             kw_df = pd.DataFrame(r["top_keywords"], columns=["word", "count"])
-            fig = px.bar(
-                kw_df, x="count", y="word", orientation="h",
-                color="count", color_continuous_scale="Blues",
-                labels={"count": "Frequency", "word": ""}
-            )
-            fig.update_layout(
-                height=300, margin=dict(l=0, r=0, t=0, b=0),
-                coloraxis_showscale=False,
-                yaxis=dict(autorange="reversed")
-            )
+            fig = px.bar(kw_df, x="count", y="word", orientation="h",
+                         color="count", color_continuous_scale="Blues",
+                         labels={"count": "Frequency", "word": ""})
+            fig.update_layout(height=300, margin=dict(l=0,r=0,t=0,b=0),
+                              coloraxis_showscale=False,
+                              yaxis=dict(autorange="reversed"))
             st.plotly_chart(fig, use_container_width=True)
 
-            # ── Readability ───────────────────────────────────────────────
             st.divider()
             st.markdown("**Readability**")
             r1, r2, r3 = st.columns(3)
             r1.metric("Flesch Reading Ease", r["flesch_score"],
                       help="0–30 = very hard, 60–70 = standard newspaper")
-            r2.metric("Grade Level", r["grade_level"],
-                      help="US school grade equivalent")
+            r2.metric("Grade Level", r["grade_level"])
             r3.metric("Avg words/sentence", r["avg_words_per_sentence"])
 
         elif run_btn:
@@ -183,78 +180,101 @@ with tab1:
 
 
 # ══════════════════════════════════════════════════════
-# TAB 2: Tone over time (reads from CSV log)
+# TAB 2: Tone over time
+# Hardcoded baseline always visible + user can add more
 # ══════════════════════════════════════════════════════
 with tab2:
     st.header("Tone Over Time")
     st.markdown(
-        "Every speech you analyse gets logged to `data/results.csv`. "
-        "This tab visualises how central bank tone has shifted — "
-        "the **research question**: *do speeches get more hawkish before rate hikes?*"
+        "**Research question:** Do Fed speeches become more hawkish before rate hikes? "
+        "Baseline shows 6 pre-analysed speeches (2021–2024). Add your own below to extend the dataset."
     )
 
-    if LOG_PATH.exists():
-        df = pd.read_csv(LOG_PATH)
+    # Combine baseline + user additions
+    all_rows = BASELINE_DATA + st.session_state.user_speeches
+    df = pd.DataFrame(all_rows)
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values("date")
 
-        if len(df) < 2:
-            st.info("Analyse at least 2 speeches to see the trend chart. Try the samples in Tab 1!")
+    # Two-panel chart
+    fig = make_subplots(
+        rows=2, cols=1, shared_xaxes=True,
+        subplot_titles=("Speech tone score (NLP output)", "Actual Fed funds rate (%)"),
+        vertical_spacing=0.12, row_heights=[0.6, 0.4]
+    )
+
+    marker_colors = df["label"].map({"Hawkish": "#e05c3a", "Dovish": "#3a7de0", "Neutral": "#888"})
+
+    fig.add_trace(go.Scatter(
+        x=df["date"], y=df["score"],
+        mode="lines+markers", name="Tone score",
+        line=dict(color="#444", width=2),
+        marker=dict(color=list(marker_colors), size=11, line=dict(width=1.5, color="white")),
+        text=df["source"],
+        hovertemplate="<b>%{text}</b><br>%{x|%b %Y}<br>Score: %{y:.4f}<extra></extra>",
+    ), row=1, col=1)
+
+    fig.add_hline(y=0.015, row=1, col=1, line_dash="dot", line_color="#e05c3a", opacity=0.4, annotation_text="Hawkish →")
+    fig.add_hline(y=-0.010, row=1, col=1, line_dash="dot", line_color="#3a7de0", opacity=0.4, annotation_text="← Dovish")
+    fig.add_hline(y=0, row=1, col=1, line_dash="dash", line_color="gray", opacity=0.25)
+
+    rate_df = pd.DataFrame(RATE_DECISIONS, columns=["date", "rate"])
+    rate_df["date"] = pd.to_datetime(rate_df["date"])
+    fig.add_trace(go.Scatter(
+        x=rate_df["date"], y=rate_df["rate"],
+        mode="lines+markers", name="Fed funds rate",
+        line=dict(color="#333", width=2, shape="hv"),
+        marker=dict(color="#555", size=6),
+        hovertemplate="%{x|%b %Y}<br>Rate: %{y:.2f}%<extra></extra>",
+    ), row=2, col=1)
+
+    fig.update_layout(
+        height=580, showlegend=False,
+        plot_bgcolor="white", paper_bgcolor="white",
+        margin=dict(l=0, r=0, t=40, b=0),
+    )
+    fig.update_yaxes(title_text="Tone score", row=1, col=1, gridcolor="#f0f0f0")
+    fig.update_yaxes(title_text="Rate (%)", row=2, col=1, gridcolor="#f0f0f0")
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption("🔴 Hawkish · 🔵 Dovish · ⚪ Neutral — hover dots for speech details")
+
+    # ── Add your own speech ───────────────────────────────────────────────────
+    st.divider()
+    st.markdown("### Add a speech to the chart")
+    st.markdown("Paste any central bank speech — it gets analysed and plotted on the timeline above.")
+
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        new_text = st.text_area("Speech text", height=120,
+                                placeholder="Paste speech text here...")
+    with c2:
+        new_source = st.text_input("Label", placeholder="e.g. Fed_Mar_2025")
+        new_date = st.date_input("Speech date")
+
+    if st.button("Add to chart →", type="primary"):
+        if new_text.strip():
+            with st.spinner("Analysing..."):
+                r = analyse(new_text, source=new_source or "unknown", save=False)
+            st.session_state.user_speeches.append({
+                "date": str(new_date),
+                "source": new_source or "unknown",
+                "score": r["score"],
+                "label": r["label"],
+                "hawk_count": r["hawk_count"],
+                "dove_count": r["dove_count"],
+            })
+            st.success(f"Added! Tone: **{r['label']}** (score: {r['score']})")
+            st.rerun()
         else:
-            df["date"] = pd.to_datetime(df["date"])
-            df_sorted = df.sort_values("date")
+            st.warning("Paste some text first!")
 
-            # ── Tone score line chart ─────────────────────────────────────
-            fig = go.Figure()
-            fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
-            fig.add_hline(y=0.015, line_dash="dot", line_color="#e05c3a", opacity=0.4,
-                          annotation_text="Hawkish threshold")
-            fig.add_hline(y=-0.010, line_dash="dot", line_color="#3a7de0", opacity=0.4,
-                          annotation_text="Dovish threshold")
+    # ── Data table ────────────────────────────────────────────────────────────
+    st.divider()
+    st.markdown("**Full dataset**")
+    display_df = df[["date", "source", "label", "score", "hawk_count", "dove_count"]].copy()
+    display_df["date"] = display_df["date"].dt.strftime("%Y-%m-%d")
+    st.dataframe(display_df.reset_index(drop=True), use_container_width=True)
 
-            colors = df_sorted["label"].map(
-                {"Hawkish": "#e05c3a", "Dovish": "#3a7de0", "Neutral": "#888"}
-            )
-            fig.add_trace(go.Scatter(
-                x=df_sorted["date"],
-                y=df_sorted["score"],
-                mode="lines+markers",
-                line=dict(color="#555", width=1.5),
-                marker=dict(color=colors, size=10, line=dict(width=1, color="white")),
-                text=df_sorted["source"],
-                hovertemplate="<b>%{text}</b><br>Date: %{x}<br>Score: %{y:.4f}<extra></extra>"
-            ))
-
-            fig.update_layout(
-                title="Central Bank Tone Score Over Time",
-                xaxis_title="Date",
-                yaxis_title="Tone Score (+ hawkish, − dovish)",
-                height=400,
-                plot_bgcolor="white",
-                paper_bgcolor="white",
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-            # ── Summary table ─────────────────────────────────────────────
-            st.divider()
-            st.markdown("**Full log**")
-            display_cols = ["date", "source", "label", "score", "word_count",
-                            "hawk_count", "dove_count", "flesch_score"]
-            st.dataframe(
-                df_sorted[display_cols].reset_index(drop=True),
-                use_container_width=True
-            )
-
-            # ── Download button ───────────────────────────────────────────
-            csv_bytes = df_sorted.to_csv(index=False).encode()
-            st.download_button(
-                "⬇ Download CSV", data=csv_bytes,
-                file_name="speech_tone_log.csv", mime="text/csv"
-            )
-    else:
-        st.info("No data yet. Analyse some speeches in Tab 1 — each one gets logged here automatically.")
-        st.markdown("""
-        **What to do once you have data:**
-        - Analyse Fed speeches from 2021–2024 (freely available on federalreserve.gov)
-        - Label each with the date + source
-        - Watch the score chart shift from dovish (COVID era) → hawkish (2022 inflation fight) → neutral (2024 pivot)
-        - That pattern is your research finding
-        """)
+    csv_bytes = df.to_csv(index=False).encode()
+    st.download_button("⬇ Download CSV", data=csv_bytes,
+                       file_name="speech_tone_log.csv", mime="text/csv")
