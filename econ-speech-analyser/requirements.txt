@@ -1,7 +1,0 @@
-nltk
-textstat
-pandas
-plotly
-streamlit
-requests
-beautifulsoup4
