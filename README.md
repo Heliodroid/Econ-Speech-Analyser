@@ -57,6 +57,27 @@ Plotting tone scores against actual FOMC rate decisions (2021–2024):
 
 ---
 
+## Academic grounding
+
+This project builds on three bodies of literature:
+
+**Textual analysis in finance**
+> Loughran, T. & McDonald, B. (2011). *When is a Liability Not a Liability? Textual Analysis, Dictionaries, and 10-Ks.* Journal of Finance, 66(1), 35–65.
+
+The foundational paper establishing that generic sentiment dictionaries misclassify financial language — motivating domain-specific lexicons like the ones used here.
+
+**Central bank communication & market expectations**
+> Hansen, S., McMahon, M. & Prat, A. (2018). *Transparency and Deliberation within the FOMC: A Computational Linguistics Approach.* Quarterly Journal of Economics, 133(2), 801–870.
+
+Demonstrates that Fed language measurably shifts market expectations independently of rate decisions — directly supporting this project's research question.
+
+**Forward guidance theory**
+> Gürkaynak, R., Sack, B. & Swanson, E. (2005). *Do Actions Speak Louder Than Words? The Response of Asset Prices to Monetary Policy Actions and Statements.* International Journal of Central Banking, 1(1), 55–93.
+
+Coins the empirical case that central bank words move markets as powerfully as actions — the theoretical backbone of tracking tone over time.
+
+---
+
 ## Setup
 
 ```bash
