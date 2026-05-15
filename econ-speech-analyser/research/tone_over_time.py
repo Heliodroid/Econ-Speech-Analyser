@@ -7,13 +7,6 @@ RESEARCH QUESTION:
   Do Federal Reserve speeches become measurably more hawkish
   in the months preceding actual interest rate hikes?
 
-TODDLER EXPLANATION:
-  Imagine you want to know if a teacher warns students before a test.
-  You read all their announcements from the last year.
-  Count warning words. Plot them on a timeline.
-  See if warning-words spike BEFORE test dates.
-  We do the exact same thing with Fed speeches and rate hike dates.
-
 HOW TO USE:
   1. pip install nltk textstat pandas plotly requests beautifulsoup4
   2. python research/tone_over_time.py
@@ -147,10 +140,7 @@ def run_analysis(speeches: list[dict]) -> pd.DataFrame:
     """
     Run the analyser over all speeches. Return a clean DataFrame.
 
-    TODDLER EXPLANATION: For each speech in our list, run the full
-    analysis pipeline and collect all results into one big table.
-    Each row = one speech. Each column = one measurement.
-    """
+   """
     print(f"Analysing {len(speeches)} speeches...\n")
     rows = []
     for sp in speeches:
@@ -183,9 +173,6 @@ def build_chart(speech_df: pd.DataFrame, decisions: list) -> go.Figure:
     telegraphs its moves through language before acting.
     That's a testable, publishable hypothesis.
 
-    TODDLER EXPLANATION: We're asking "does the Fed warn us with words
-    before they actually do something?" Two charts stacked: words on top,
-    actions on bottom. If they move together, words predict actions.
     """
     rate_df = pd.DataFrame(decisions, columns=["date", "rate", "action"])
     rate_df["date"] = pd.to_datetime(rate_df["date"])
