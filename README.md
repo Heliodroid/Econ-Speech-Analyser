@@ -8,7 +8,7 @@ A Python NLP tool that classifies central bank communications (Fed, RBI, ECB) as
 
 ## Live Demo
 
-▶ **[Launch Web App]([https://your-app-name.streamlit.app](https://econ-speech-analyser.streamlit.app/))** 
+▶ **[Launch Web App](https://econ-speech-analyser.streamlit.app)**
 
 ---
 
@@ -135,4 +135,4 @@ econ-speech-analyser/
 ## Author
 
 Built as a portfolio project demonstrating NLP applied to macroeconomic research.  
-Contact: [your-email] | [LinkedIn]
+Contact: [thearkobanerjee007@gmail.com](mailto:thearkobanerjee007@gmail.com) | [LinkedIn](https://www.linkedin.com/in/arko-banerjee-547497386/)
